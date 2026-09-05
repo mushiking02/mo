@@ -57,6 +57,11 @@
     .section.active { display: block; }
     form { display: flex; flex-direction: column; gap: 0.8rem; }
     input, select { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+    .search-box {
+      margin-bottom: 1rem;
+      width: 100%;
+      box-sizing: border-box;
+    }
     .item-card {
       border: 1px solid #e5e7eb;
       padding: 0.8rem;
@@ -78,6 +83,12 @@
     .quiz-box { text-align: center; margin: 2rem 0; }
     .quiz-term { font-size: 2rem; font-weight: bold; margin-bottom: 1rem; }
     .actions { display: flex; align-items: center; gap: 0.5rem; }
+    .setup-group {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -106,28 +117,42 @@
     </form>
   </div>
 
-  <!-- 一覧画面 -->
+  <!-- 一覧画面（辞書機能） -->
   <div id="sec-list" class="section">
-    <h2>登録一覧</h2>
-    <div>
+    <h2>登録一覧（辞書機能）</h2>
+    <input type="text" id="search-input" class="search-box" placeholder="🔍 単語・熟語・意味で検索..." oninput="renderList(currentFilter)">
+    
+    <div style="margin-bottom: 1rem;">
       <button onclick="renderList('all')">すべて</button>
       <button onclick="renderList('word')">単語のみ</button>
       <button onclick="renderList('idiom')">熟語のみ</button>
     </div>
-    <div id="item-list" style="margin-top: 1rem;"></div>
+    <div id="item-list"></div>
   </div>
 
   <!-- テスト画面 -->
   <div id="sec-quiz" class="section">
-    <h2>10題ランダム出題</h2>
-    <div id="quiz-setup">
-      <select id="quiz-type">
-        <option value="all">すべて</option>
-        <option value="word">単語のみ</option>
-        <option value="idiom">熟語のみ</option>
-      </select>
-      <button onclick="startQuiz()" class="primary">テスト開始</button>
+    <h2>テスト設定</h2>
+    <div id="quiz-setup" class="setup-group">
+      <div>
+        <label>出題対象:</label>
+        <select id="quiz-type" style="width: 100%; margin-top: 0.3rem;">
+          <option value="all">すべて</option>
+          <option value="word">単語のみ</option>
+          <option value="idiom">熟語のみ</option>
+        </select>
+      </div>
+      <div>
+        <label>問題数:</label>
+        <select id="quiz-count" style="width: 100%; margin-top: 0.3rem;">
+          <option value="10">10題</option>
+          <option value="50">50題</option>
+          <option value="100">100題</option>
+        </select>
+      </div>
+      <button onclick="startQuiz()" class="primary">テストスタート</button>
     </div>
+
     <div id="quiz-area" class="quiz-box" style="display:none;">
       <div id="quiz-progress"></div>
       <div id="quiz-term" class="quiz-term"></div>
@@ -190,14 +215,18 @@
     if (confirm('本当に削除しますか？（履歴からも完全に消去されます）')) {
       data = data.filter(item => item.id !== id);
       saveData();
-      // 現在開いているタブに応じて表示を再更新
       const activeSection = document.querySelector('.section.active').id;
       if (activeSection === 'sec-list') renderList(currentFilter);
       if (activeSection === 'sec-history') renderHistory();
     }
   }
 
-  function calcRate(correct, attempt) {
+  function calcRateNum(correct, attempt) {
+    if (attempt === 0) return 0; // 未回答は正答率0%
+    return (correct / attempt);
+  }
+
+  function calcRateText(correct, attempt) {
     if (attempt === 0) return '未回答';
     return Math.round((correct / attempt) * 100) + '%';
   }
@@ -205,8 +234,14 @@
   function renderList(filter) {
     currentFilter = filter;
     const listEl = document.getElementById('item-list');
+    const keyword = document.getElementById('search-input').value.toLowerCase().trim();
     listEl.innerHTML = '';
-    const filtered = data.filter(item => !item.isArchived && (filter === 'all' || item.type === filter));
+
+    const filtered = data.filter(item => {
+      const matchType = !item.isArchived && (filter === 'all' || item.type === filter);
+      const matchKeyword = item.term.toLowerCase().includes(keyword) || item.meaning.toLowerCase().includes(keyword);
+      return matchType && matchKeyword;
+    });
 
     if (filtered.length === 0) {
       listEl.innerHTML = '<p>該当する項目がありません</p>';
@@ -221,7 +256,7 @@
             <strong>${item.term}</strong> : ${item.meaning}
           </div>
           <div class="actions">
-            <span style="font-size:0.85rem;">正答率: ${calcRate(item.correctCount, item.attemptCount)} (${item.consecutiveCorrect}/10)</span>
+            <span style="font-size:0.85rem;">正答率: ${calcRateText(item.correctCount, item.attemptCount)} (${item.consecutiveCorrect}/10)</span>
             <button onclick="deleteItem(${item.id})" class="danger">削除</button>
           </div>
         </div>
@@ -247,7 +282,7 @@
             <strong>${item.term}</strong> : ${item.meaning}
           </div>
           <div class="actions">
-            <span style="font-size:0.85rem;">正答率: ${calcRate(item.correctCount, item.attemptCount)}</span>
+            <span style="font-size:0.85rem;">正答率: ${calcRateText(item.correctCount, item.attemptCount)}</span>
             <button onclick="deleteItem(${item.id})" class="danger">削除</button>
           </div>
         </div>
@@ -257,6 +292,7 @@
 
   function startQuiz() {
     const type = document.getElementById('quiz-type').value;
+    const targetCount = parseInt(document.getElementById('quiz-count').value, 10);
     const available = data.filter(item => !item.isArchived && (type === 'all' || item.type === type));
 
     if (available.length === 0) {
@@ -264,7 +300,36 @@
       return;
     }
 
-    currentQuiz = [...available].sort(() => 0.5 - Math.random()).slice(0, 10);
+    // 正答率順にソート（低い順）
+    const sorted = [...available].sort((a, b) => {
+      return calcRateNum(a.correctCount, a.attemptCount) - calcRateNum(b.correctCount, b.attemptCount);
+    });
+
+    // 出題数の計算（8割を苦手問題、2割を得意問題から抽出）
+    const lowCount = Math.ceil(targetCount * 0.8);
+    const highCount = targetCount - lowCount;
+
+    // 苦手問題（正答率が低い前半分）と得意問題（後半分）に分類
+    const halfIndex = Math.ceil(sorted.length / 2);
+    const lowPool = sorted.slice(0, halfIndex);
+    const highPool = sorted.slice(halfIndex);
+
+    // 苦手枠・得意枠からそれぞれランダム抽出
+    const selectedLow = [...lowPool].sort(() => 0.5 - Math.random()).slice(0, lowCount);
+    let selectedHigh = [...highPool].sort(() => 0.5 - Math.random()).slice(0, highCount);
+
+    // 得意枠のデータ数が足りない場合は、全体から補填
+    const currentSelected = [...selectedLow, ...selectedHigh];
+    if (currentSelected.length < targetCount) {
+      const remaining = sorted.filter(item => !currentSelected.includes(item));
+      const extra = [...remaining].sort(() => 0.5 - Math.random()).slice(0, targetCount - currentSelected.length);
+      currentQuiz = [...currentSelected, ...extra];
+    } else {
+      currentQuiz = currentSelected;
+    }
+
+    // 最後に全体をシャッフル
+    currentQuiz.sort(() => 0.5 - Math.random());
     quizIndex = 0;
 
     document.getElementById('quiz-setup').style.display = 'none';
@@ -274,8 +339,8 @@
 
   function nextQuestion() {
     if (quizIndex >= currentQuiz.length) {
-      alert('テスト終了！');
-      document.getElementById('quiz-setup').style.display = 'block';
+      alert('テスト終了！お疲れ様でした。');
+      document.getElementById('quiz-setup').style.display = 'flex';
       document.getElementById('quiz-area').style.display = 'none';
       return;
     }

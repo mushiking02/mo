@@ -93,6 +93,7 @@
       gap: 1rem;
       margin-bottom: 1rem;
     }
+    /* 学習ステータスカード */
     .stats-container {
       display: flex;
       gap: 1rem;
@@ -111,6 +112,7 @@
       font-weight: bold;
       color: var(--primary);
     }
+    /* PDF出力用テーブルスタイル */
     .pdf-table {
       width: 100%;
       border-collapse: collapse;
@@ -260,20 +262,25 @@
     localStorage.setItem('vocab_stats', JSON.stringify(stats));
   }
 
+  // 学習日付と連続日数のチェック
   function checkDailyStats() {
     const today = new Date().toISOString().split('T')[0];
     
     if (stats.todayDate !== today) {
       stats.todayDate = today;
-      stats.todayCount = 0;
+      stats.todayCount = 0; // 日付が変わったら本日の学習数をリセット
     }
 
     if (stats.lastStudyDate) {
       const last = new Date(stats.lastStudyDate);
       const curr = new Date(today);
-      const diffDays = Math.floor((curr - last) / (1000 * 60 * 60 * 24));
+      const diffTime = curr - last;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays > 1) {
+      if (diffDays === 1) {
+        // 昨日学習していたら何もしない（記録継続中）
+      } else if (diffDays > 1) {
+        // 1日以上空いたらリセット
         stats.streakDays = 0;
       }
     }
@@ -516,7 +523,7 @@
   }
 
   function handleResult(isCorrect) {
-    recordStudyActivity();
+    recordStudyActivity(); // 回答するたびに本日の学習数＋1と連続日数を記録
 
     const item = currentQuiz[quizIndex];
     item.attemptCount++;
@@ -540,15 +547,7 @@
     nextQuestion();
   }
 
-  // --- オフライン対応（Service Worker登録） ---
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then((reg) => console.log('オフライン準備完了:', reg.scope))
-        .catch((err) => console.log('SW登録エラー:', err));
-    });
-  }
-
+  // 初期化
   checkDailyStats();
 </script>
 </body>

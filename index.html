@@ -93,7 +93,6 @@
       gap: 1rem;
       margin-bottom: 1rem;
     }
-    /* 学習ステータスカード */
     .stats-container {
       display: flex;
       gap: 1rem;
@@ -112,7 +111,6 @@
       font-weight: bold;
       color: var(--primary);
     }
-    /* PDF出力用テーブルスタイル */
     .pdf-table {
       width: 100%;
       border-collapse: collapse;
@@ -226,10 +224,8 @@
       <table class="pdf-table">
         <thead>
           <tr>
-            <th>種別</th>
-            <th>単語/熟語</th>
-            <th>意味</th>
-            <th>正答率</th>
+            <th style="width: 40%;">単語/熟語</th>
+            <th style="width: 60%;">意味</th>
           </tr>
         </thead>
         <tbody id="pdf-table-body"></tbody>
@@ -262,25 +258,20 @@
     localStorage.setItem('vocab_stats', JSON.stringify(stats));
   }
 
-  // 学習日付と連続日数のチェック
   function checkDailyStats() {
     const today = new Date().toISOString().split('T')[0];
     
     if (stats.todayDate !== today) {
       stats.todayDate = today;
-      stats.todayCount = 0; // 日付が変わったら本日の学習数をリセット
+      stats.todayCount = 0;
     }
 
     if (stats.lastStudyDate) {
       const last = new Date(stats.lastStudyDate);
       const curr = new Date(today);
-      const diffTime = curr - last;
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor((curr - last) / (1000 * 60 * 60 * 24));
 
-      if (diffDays === 1) {
-        // 昨日学習していたら何もしない（記録継続中）
-      } else if (diffDays > 1) {
-        // 1日以上空いたらリセット
+      if (diffDays > 1) {
         stats.streakDays = 0;
       }
     }
@@ -404,17 +395,15 @@
 
     const activeList = data.filter(item => !item.isArchived);
     if (activeList.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">登録データがありません</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;">登録データがありません</td></tr>';
       return;
     }
 
     activeList.forEach(item => {
       tbody.innerHTML += `
         <tr>
-          <td>${item.type === 'word' ? '単語' : '熟語'}</td>
           <td><strong>${item.term}</strong></td>
           <td>${item.meaning}</td>
-          <td>${calcRateText(item.correctCount, item.attemptCount)}</td>
         </tr>
       `;
     });
@@ -523,7 +512,7 @@
   }
 
   function handleResult(isCorrect) {
-    recordStudyActivity(); // 回答するたびに本日の学習数＋1と連続日数を記録
+    recordStudyActivity();
 
     const item = currentQuiz[quizIndex];
     item.attemptCount++;
@@ -547,7 +536,15 @@
     nextQuestion();
   }
 
-  // 初期化
+  // --- オフライン対応（Service Worker登録） ---
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then((reg) => console.log('オフライン準備完了:', reg.scope))
+        .catch((err) => console.log('SW登録エラー:', err));
+    });
+  }
+
   checkDailyStats();
 </script>
 </body>
